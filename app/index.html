@@ -1,0 +1,26 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Atlas</title><link rel="manifest" href="manifest.webmanifest"><link rel="icon" type="image/png" href="icon-192.png"><link rel="apple-touch-icon" href="icon.png">
+<meta name="theme-color" content="#0b6fb8"><style>body{margin:0;height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui,Segoe UI,Arial;
+background:#f4f6f9;color:#1c2733;text-align:center;padding:20px;box-sizing:border-box}#st{font-size:18px;line-height:1.5}</style></head>
+<body><div id="st">Atlas wird geladen &hellip;</div><script>
+(async function(){var APP='186c807b',WEG=["https://api.github.com/repos/Atlas-AI2026/Atlas-AI2026.github.io/contents/atlas-weg.json", "https://Atlas-AI2026.github.io/atlas-weg.json"],st=document.getElementById('st'),t='',basis='',html=null;
+ var q=new URLSearchParams(location.search);try{t=q.get('token')||'';if(t)localStorage.setItem('atlas_token',t);else t=localStorage.getItem('atlas_token')||'';
+  localStorage.setItem('atlas_app_id',APP);basis=localStorage.getItem('atlas_basis')||'';}catch(e){}
+ if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(function(){});
+ if(!t){st.textContent='Bitte einmal den Atlas-Link mit Schl\u00fcssel \u00f6ffnen (kommt vom PC).';return;}
+ function b64(s){var r=atob(s),a=new Uint8Array(r.length);for(var k=0;k<r.length;k++)a[k]=r.charCodeAt(k);return a;}
+ async function weg(){for(var i=0;i<WEG.length;i++){try{var r=await fetch(WEG[i]+(WEG[i].indexOf('?')>=0?'&':'?')+'_='+Date.now(),{cache:'no-store'});if(!r.ok)continue;
+   var j=await r.json();if(j.content)j=JSON.parse(atob(j.content.replace(/\s/g,'')));
+   var key=await crypto.subtle.importKey('raw',await crypto.subtle.digest('SHA-256',new TextEncoder().encode('atlas-weg:'+t)),'AES-GCM',false,['decrypt']);
+   var d=JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:b64(j.iv)},key,b64(j.daten))));
+   if(d.url)return d.url.replace(/\/$/,'');}catch(e){}}return '';}
+ async function holen(b){var c=new AbortController(),tm=setTimeout(function(){c.abort()},15000);
+  try{var r=await fetch(b+'/coder/app/'+APP+'/index.html?token='+encodeURIComponent(t)+'&starter=1',{cache:'no-store',signal:c.signal});
+   if(!r.ok)return null;var h=await r.text();return /<html/i.test(h)&&h.indexOf('ATLAS')>=0?h:null;}catch(e){return null;}finally{clearTimeout(tm);}}
+ if(basis)html=await holen(basis);
+ if(!html){var n=await weg();if(n){basis=n;html=await holen(basis);}}
+ if(html){try{localStorage.setItem('atlas_basis',basis);localStorage.setItem('atlas_app_html',html);}catch(e){}}
+ else{try{html=localStorage.getItem('atlas_app_html');}catch(e){}}
+ if(!html){st.textContent='Atlas ist gerade nicht erreichbar (PC aus oder kein Internet?). Bitte sp\u00e4ter nochmal \u00f6ffnen.';return;}
+ document.open();document.write(html);document.close();})();
+</script></body></html>
