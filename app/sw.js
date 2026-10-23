@@ -1,4 +1,4 @@
-const C='atlas-app-v2',SWV='sw-2026-10-23c';self.addEventListener('install',e=>self.skipWaiting());
+const C='atlas-app-v2',SWV='sw-2026-10-23d';self.addEventListener('install',e=>self.skipWaiting());
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(l=>Promise.all(l.filter(k=>k!==C&&k!=='atlas-diag').map(k=>caches.delete(k))))
  .then(()=>caches.open('atlas-diag')).then(c=>c.put('/__sw_version',new Response(SWV))).catch(()=>{}).then(()=>self.clients.claim())));
 self.addEventListener('fetch',e=>{if(e.request.method!=='GET'||!e.request.url.startsWith(self.registration.scope))return;
@@ -9,7 +9,9 @@ self.addEventListener('push',e=>{let d={};try{d=e.data.json()}catch(x){d={titel:
  if(d.dringend){o.requireInteraction=true;o.vibrate=[1000,300,1000,300,1000,300,2000];o.silent=false;}
  const merk=st=>caches.open('atlas-diag').then(c=>c.put('/__letzter_push',new Response(JSON.stringify({zeit:new Date().toISOString(),titel:d.titel||'',status:st})))
   .then(()=>c.match('/__bridge')).then(r=>r?r.json():null).then(b=>{if(b&&b.basis)return fetch(b.basis+'/sprechen/diag?token='+encodeURIComponent(b.token),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({t:'PUSH-ANGEKOMMEN '+SWV+' '+(d.titel||'')+' -> '+st})});})).catch(()=>{});
- e.waitUntil(self.registration.showNotification(d.titel||'Atlas',o).then(()=>merk('angezeigt'),err=>merk('Fehler: '+err)));});
+ /* 23.10.: Bild von der Familie (bildpost) gross in der Benachrichtigung - Adresse+Schluessel der Bridge legt die App im Cache ab */
+ const mitBild=d.bild?caches.open('atlas-diag').then(c=>c.match('/__bridge')).then(r=>r?r.json():null).then(b=>{if(b&&b.basis)o.image=b.basis+d.bild+(d.bild.indexOf('?')>=0?'&':'?')+'token='+encodeURIComponent(b.token);}).catch(()=>{}):Promise.resolve();
+ e.waitUntil(mitBild.then(()=>self.registration.showNotification(d.titel||'Atlas',o)).then(()=>merk('angezeigt'),err=>merk('Fehler: '+err)));});
 self.addEventListener('notificationclick',e=>{e.notification.close();const nd=e.notification.data||{};
  if(nd.url){e.waitUntil(clients.openWindow(nd.url));return;}
  const a=nd.anker||'';const u=self.registration.scope+'index.html'+(a?'#'+a:'');
