@@ -1,5 +1,5 @@
-const C='atlas-app-v2',SWV='sw-2026-10-26a';self.addEventListener('install',e=>self.skipWaiting());
-self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(l=>Promise.all(l.filter(k=>k!==C&&k!=='atlas-diag'&&k!=='atlas-geteilt').map(k=>caches.delete(k))))
+const C='atlas-app-v2',SWV='sw-2026-10-26b';self.addEventListener('install',e=>self.skipWaiting());
+self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(l=>Promise.all(l.filter(k=>k!==C&&k!=='atlas-diag'&&k!=='atlas-geteilt'&&k!=='atlas-antworten').map(k=>caches.delete(k))))
  .then(()=>caches.open('atlas-diag')).then(c=>c.put('/__sw_version',new Response(SWV))).catch(()=>{}).then(()=>self.clients.claim())));
 /* 26.10. (Oleg: "per Handy Atlas ein Foto schicken"): Galerie -> Teilen -> Atlas. Das Handy schickt die Dateien hierher (share_target im Manifest);
    sie kommen in den Cache 'atlas-geteilt', die App oeffnet "An Atlas" damit (?geteilt=1) */
@@ -20,7 +20,11 @@ self.addEventListener('push',e=>{let d={};try{d=e.data.json()}catch(x){d={titel:
   .then(()=>c.match('/__bridge')).then(r=>r?r.json():null).then(b=>{if(b&&b.basis)return fetch(b.basis+'/sprechen/diag?token='+encodeURIComponent(b.token),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({t:'PUSH-ANGEKOMMEN '+SWV+' '+(d.titel||'')+' -> '+st})});})).catch(()=>{});
  /* 23.10.: Bild von der Familie (bildpost) gross in der Benachrichtigung - Adresse+Schluessel der Bridge legt die App im Cache ab */
  const mitBild=d.bild?caches.open('atlas-diag').then(c=>c.match('/__bridge')).then(r=>r?r.json():null).then(b=>{if(b&&b.basis)o.image=b.basis+d.bild+(d.bild.indexOf('?')>=0?'&':'?')+'token='+encodeURIComponent(b.token);}).catch(()=>{}):Promise.resolve();
- e.waitUntil(mitBild.then(()=>self.registration.showNotification(d.titel||'Atlas',o)).then(()=>merk('angezeigt'),err=>merk('Fehler: '+err)));});
+ /* 26.10. (Oleg): Antwort vom PC aufs Handy - die Sprachausgabe erst laden (max. 8 s), dann die Benachrichtigung: beim Oeffnen ohne Ladezeit vorlesen */
+ const mitAudio=d.audio?Promise.race([caches.open('atlas-diag').then(c=>c.match('/__bridge')).then(r=>r?r.json():null).then(b=>{if(!b||!b.basis)return;
+   return fetch(b.basis+d.audio+'&token='+encodeURIComponent(b.token)).then(r=>r.ok?caches.open('atlas-antworten').then(c=>c.put('/__antwort/'+(d.audio.split('id=')[1]||''),r)):null);}),
+   new Promise(r=>setTimeout(r,8000))]).catch(()=>{}):Promise.resolve();
+ e.waitUntil(mitAudio.then(()=>mitBild).then(()=>self.registration.showNotification(d.titel||'Atlas',o)).then(()=>merk('angezeigt'),err=>merk('Fehler: '+err)));});
 self.addEventListener('notificationclick',e=>{e.notification.close();const nd=e.notification.data||{};
  if(nd.url){e.waitUntil(clients.openWindow(nd.url));return;}
  const a=nd.anker||'';const u=self.registration.scope+'index.html'+(a?'#'+a:'');
