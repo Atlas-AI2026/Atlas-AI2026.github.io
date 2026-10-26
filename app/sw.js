@@ -1,6 +1,15 @@
-const C='atlas-app-v2',SWV='sw-2026-10-23d';self.addEventListener('install',e=>self.skipWaiting());
-self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(l=>Promise.all(l.filter(k=>k!==C&&k!=='atlas-diag').map(k=>caches.delete(k))))
+const C='atlas-app-v2',SWV='sw-2026-10-26a';self.addEventListener('install',e=>self.skipWaiting());
+self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(l=>Promise.all(l.filter(k=>k!==C&&k!=='atlas-diag'&&k!=='atlas-geteilt').map(k=>caches.delete(k))))
  .then(()=>caches.open('atlas-diag')).then(c=>c.put('/__sw_version',new Response(SWV))).catch(()=>{}).then(()=>self.clients.claim())));
+/* 26.10. (Oleg: "per Handy Atlas ein Foto schicken"): Galerie -> Teilen -> Atlas. Das Handy schickt die Dateien hierher (share_target im Manifest);
+   sie kommen in den Cache 'atlas-geteilt', die App oeffnet "An Atlas" damit (?geteilt=1) */
+self.addEventListener('fetch',e=>{const u=new URL(e.request.url);if(e.request.method!=='POST'||!u.pathname.endsWith('/teilen')||!e.request.url.startsWith(self.registration.scope))return;
+ e.respondWith((async()=>{try{const fd=await e.request.formData(),c=await caches.open('atlas-geteilt'),id=Date.now(),fl=fd.getAll('dateien').filter(f=>f&&f.size);
+  const meta={id:id,text:[fd.get('title'),fd.get('text'),fd.get('url')].filter(Boolean).join(' '),dateien:[]};
+  for(let i=0;i<fl.length&&i<8;i++){const k='/__geteilt/'+id+'/'+i;await c.put(k,new Response(fl[i],{headers:{'Content-Type':fl[i].type||'application/octet-stream'}}));
+   meta.dateien.push({k:k,name:fl[i].name||('datei'+i),typ:fl[i].type||''});}
+  await c.put('/__geteilt/neu',new Response(JSON.stringify(meta)));}catch(x){}
+  return Response.redirect(self.registration.scope+'?geteilt=1',303);})());});
 self.addEventListener('fetch',e=>{if(e.request.method!=='GET'||!e.request.url.startsWith(self.registration.scope))return;
  e.respondWith(fetch(e.request).then(r=>{if(r.ok){const k=r.clone();caches.open(C).then(c=>c.put(e.request,k));return r;}
   return caches.match(e.request,{ignoreSearch:true}).then(c=>c||r);}).catch(()=>caches.match(e.request,{ignoreSearch:true})));});
