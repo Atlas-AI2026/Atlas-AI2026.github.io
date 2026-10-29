@@ -1,4 +1,4 @@
-const C='atlas-app-v2',SWV='sw-2026-10-29b';self.addEventListener('install',e=>self.skipWaiting());
+const C='atlas-app-v2',SWV='sw-2026-10-29c';self.addEventListener('install',e=>self.skipWaiting());
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(l=>Promise.all(l.filter(k=>k!==C&&k!=='atlas-diag'&&k!=='atlas-geteilt'&&k!=='atlas-antworten'&&k!=='atlas-mitteilungen').map(k=>caches.delete(k))))
  .then(()=>caches.open('atlas-diag')).then(c=>c.put('/__sw_version',new Response(SWV))).catch(()=>{}).then(()=>self.clients.claim())));
 /* 26.10. (Oleg: "per Handy Atlas ein Foto schicken"): Galerie -> Teilen -> Atlas. Das Handy schickt die Dateien hierher (share_target im Manifest);
@@ -33,7 +33,16 @@ self.addEventListener('push',e=>{let d={};try{d=e.data.json()}catch(x){d={titel:
    new Promise(r=>setTimeout(r,8000))]).catch(()=>{}):Promise.resolve();
  e.waitUntil(mitMerken.then(()=>mitAudio).then(()=>mitBild).then(()=>self.registration.showNotification(d.titel||'Atlas',o)).then(()=>merk('angezeigt'),err=>merk('Fehler: '+err)));});
 self.addEventListener('notificationclick',e=>{e.notification.close();const nd=e.notification.data||{};
- if(nd.url){e.waitUntil(clients.openWindow(nd.url));return;}
- const a=e.action&&nd.id?'mitteilung-'+nd.id+'-'+e.action:(nd.frage&&nd.id?'mitteilung-'+nd.id:(nd.anker||(nd.id?'mitteilung-'+nd.id:'')));const u=self.registration.scope+'index.html'+(a?'#'+a:'');
- e.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(l=>{for(const c of l){if('focus' in c&&c.url.startsWith(self.registration.scope)){
-  if(a&&'navigate' in c)c.navigate(u).catch(()=>{});return c.focus();}}return clients.openWindow(u);}));});
+ if(nd.url&&!e.action){e.waitUntil(clients.openWindow(nd.url));return;}
+ /* 29.10. (Oleg: "antippen -> Mitteilung soll sich sofort oeffnen, mit Antwort, wenn eine Frage drin ist"): immer die ganze Mitteilung
+    (Kalender usw. per Knopf darin); nur Antworten/Bilder/SOS haben eigene Fenster. Offene App bekommt eine Nachricht -
+    navigate() scheiterte still (App kam nur nach vorn); erst wenn die App nicht antwortet, neu laden */
+ const eigen=/^(antwort-|bild-|sos$)/.test(nd.anker||'');
+ const a=nd.id&&!eigen?'mitteilung-'+nd.id+(e.action?'-'+e.action:''):(nd.anker||'');const u=self.registration.scope+'index.html'+(a?'#'+a:'');
+ e.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(l=>{const c=l.find(x=>x.url.startsWith(self.registration.scope));
+  if(!c)return clients.openWindow(u);
+  const f=Promise.resolve('focus' in c?c.focus():c).catch(()=>c);
+  if(!a)return f;
+  return f.then(()=>new Promise(ok=>{const k=new MessageChannel(),t=setTimeout(()=>ok(false),2500);k.port1.onmessage=()=>{clearTimeout(t);ok(true);};
+    try{c.postMessage({atlasAnker:a},[k.port2]);}catch(x){clearTimeout(t);ok(false);}}))
+   .then(da=>da?null:('navigate' in c?c.navigate(u).then(w=>w||clients.openWindow(u)):clients.openWindow(u)).catch(()=>clients.openWindow(u)));}));});
