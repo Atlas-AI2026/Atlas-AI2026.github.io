@@ -1,4 +1,4 @@
-const C='atlas-app-v2',SWV='sw-2026-10-29c';self.addEventListener('install',e=>self.skipWaiting());
+const C='atlas-app-v2',SWV='sw-2026-10-29d';self.addEventListener('install',e=>self.skipWaiting());
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(l=>Promise.all(l.filter(k=>k!==C&&k!=='atlas-diag'&&k!=='atlas-geteilt'&&k!=='atlas-antworten'&&k!=='atlas-mitteilungen').map(k=>caches.delete(k))))
  .then(()=>caches.open('atlas-diag')).then(c=>c.put('/__sw_version',new Response(SWV))).catch(()=>{}).then(()=>self.clients.claim())));
 /* 26.10. (Oleg: "per Handy Atlas ein Foto schicken"): Galerie -> Teilen -> Atlas. Das Handy schickt die Dateien hierher (share_target im Manifest);
@@ -39,10 +39,15 @@ self.addEventListener('notificationclick',e=>{e.notification.close();const nd=e.
     navigate() scheiterte still (App kam nur nach vorn); erst wenn die App nicht antwortet, neu laden */
  const eigen=/^(antwort-|bild-|sos$)/.test(nd.anker||'');
  const a=nd.id&&!eigen?'mitteilung-'+nd.id+(e.action?'-'+e.action:''):(nd.anker||'');const u=self.registration.scope+'index.html'+(a?'#'+a:'');
- e.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(l=>{const c=l.find(x=>x.url.startsWith(self.registration.scope));
-  if(!c)return clients.openWindow(u);
+ /* 29.10. (2) Oleg: "es oeffnet sich nur die App" - Ziel zusaetzlich im Cache merken ('/__oeffnen'); die App schaut beim Start und beim
+    Sichtbarwerden nach (unabhaengig davon, ob Anker oder Nachricht ankommen). Ferndiagnose: KLICK-Zeilen in sprechen_diag.log */
+ const sd=t=>caches.open('atlas-diag').then(c=>c.match('/__bridge')).then(r=>r?r.json():null).then(b=>{if(b&&b.basis)return fetch(b.basis+'/sprechen/diag?token='+encodeURIComponent(b.token),
+   {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({t:'KLICK '+SWV+' '+t})});}).catch(()=>{});
+ const merk=a?caches.open('atlas-diag').then(c=>c.put('/__oeffnen',new Response(JSON.stringify({a:a,zeit:Date.now()})))).catch(()=>{}):Promise.resolve();
+ e.waitUntil(merk.then(()=>clients.matchAll({type:'window',includeUncontrolled:true})).then(l=>{const c=l.find(x=>x.url.startsWith(self.registration.scope));
+  if(!c)return clients.openWindow(u).then(w=>sd(a+' -> neu geoeffnet ('+(w?'ok':'kein Fenster')+')'),x=>sd(a+' -> oeffnen FEHLER '+x));
   const f=Promise.resolve('focus' in c?c.focus():c).catch(()=>c);
   if(!a)return f;
   return f.then(()=>new Promise(ok=>{const k=new MessageChannel(),t=setTimeout(()=>ok(false),2500);k.port1.onmessage=()=>{clearTimeout(t);ok(true);};
     try{c.postMessage({atlasAnker:a},[k.port2]);}catch(x){clearTimeout(t);ok(false);}}))
-   .then(da=>da?null:('navigate' in c?c.navigate(u).then(w=>w||clients.openWindow(u)):clients.openWindow(u)).catch(()=>clients.openWindow(u)));}));});
+   .then(da=>sd(a+' -> App war offen ('+c.url.slice(-40)+'), Nachricht '+(da?'bestaetigt':'OHNE Antwort - App holt es aus dem Speicher')));}));});
